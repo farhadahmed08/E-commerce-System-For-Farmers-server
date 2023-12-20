@@ -23,7 +23,11 @@ async function run() {
       await client.connect();
 
       //database collection
-      const userCollection = client.db("bistroDb").collection("users");
+      const userCollection = client.db("organicDb").collection("users");
+      const productCollection = client.db("organicDb").collection("products");
+      const reviewCollection = client.db("organicDb").collection("reviews");
+      const cartCollection = client.db("organicDb").collection("carts");
+      const paymentCollection = client.db("organicDb").collection("payments");
 
 
        //jwt related api
