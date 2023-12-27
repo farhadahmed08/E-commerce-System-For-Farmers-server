@@ -60,6 +60,84 @@ async function run() {
       };
 
 
+      //user related api
+    app.get("/users", verifyToken, async (req, res) => {
+        const result = await userCollection.find().toArray();
+        res.send(result);
+      });
+
+
+      app.post("/users", async (req, res) => {
+        const user = req.body;
+        // insert email if user dosent exist
+        // you can do this many ways (1.email unique, 2.upsert 3.simple checking)
+        const query = { email: user.email };
+        // console.log(query)
+        const existingUser = await userCollection.findOne(query);
+        if (existingUser) {
+          return res.send({ message: "user already exists", insertedId: null });
+        }
+  
+        const result = await userCollection.insertOne(user);
+        res.send(result);
+      });
+
+
+      // Get user role
+    // app.get('/users/:email', async (req, res) => {
+    //     const email = req.params.email
+    //     const result = await userCollection.findOne({ email })
+    //     res.send(result)
+    //   })
+
+
+
+
+
+        //product related apis
+    app.get("/product", async (req, res) => {
+        const result = await productCollection.find().toArray();
+        res.send(result);
+      });
+
+      app.get("/product/:id", async (req, res) => {
+        const id = req.params.id;
+        const query = { _id:new ObjectId (id) };
+        const result = await productCollection.findOne(query);
+        res.send(result);
+      });
+
+
+      app.post("/product", verifyToken, async (req, res) => {
+        const item = req.body;
+        console.log(item);
+        const result = await productCollection.insertOne(item);
+        res.send(result);
+      }); 
+
+       //carts
+    app.get("/carts", async (req, res) => {
+        const email = req.query.email;
+        const query = { email: email };
+        const result = await cartCollection.find(query).toArray();
+        res.send(result);
+      });
+
+      //carts collection
+    app.post("/carts", async (req, res) => {
+        const cartItem = req.body;
+        const result = await cartCollection.insertOne(cartItem);
+        res.send(result);
+      });
+
+      app.delete("/carts/:id", async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await cartCollection.deleteOne(query);
+        res.send(result);
+      }); 
+
+
 
 
       // Send a ping to confirm a successful connection
@@ -67,7 +145,7 @@ async function run() {
       console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
       // Ensures that the client will close when you finish/error
-      await client.close();
+    //   await client.close();
     }
   }
   run().catch(console.dir);
