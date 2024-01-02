@@ -3,6 +3,10 @@ const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const formData = require("form-data");
+const Mailgun = require("mailgun.js");
+const mailgun = new Mailgun(formData);
 
 
 const port = process.env.PORT || 5000;
@@ -12,6 +16,10 @@ const { MongoClient, ObjectId } = require("mongodb");
 // middleware
 app.use(cors());
 app.use(express.json());
+const mg = mailgun.client({
+  username: "api",
+  key: process.env.MAIL_GUN_API_KEY,
+});
 
 
 const uri = "mongodb://0.0.0.0:27017/";
@@ -60,10 +68,40 @@ async function run() {
       };
 
 
+      //use verify admin after verifyToken
+
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email }; 
+      const user = await userCollection.findOne(query);
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
+
       //user related api
-    app.get("/users", verifyToken, async (req, res) => {
+    app.get("/users", verifyToken,verifyAdmin, async (req, res) => {
         const result = await userCollection.find().toArray();
         res.send(result);
+      });
+
+
+      app.get("/users/admin/:email", verifyToken, async (req, res) => {
+        const email = req.params.email;
+        if (email !== req.decoded?.email) {
+          return res.status(403).send({ message: "forbidden access" });
+        }
+  
+        const query = { email: email };
+        const user = await userCollection.findOne(query);
+        let admin = false;
+        if (user) {
+          admin = user?.role === "admin";
+        }
+        res.send({ admin });
       });
 
 
@@ -81,6 +119,33 @@ async function run() {
         const result = await userCollection.insertOne(user);
         res.send(result);
       });
+
+      
+      app.patch(
+        "/users/admin/:id",
+        verifyToken,
+        verifyAdmin,
+        async (req, res) => {
+          const id = req.params.id;
+          const filter = { _id: new ObjectId(id) };
+          const updatedDoc = {
+            $set: {
+              role: "admin",
+            },
+          };
+          const result = await userCollection.updateOne(filter, updatedDoc);
+          res.send(result);
+        }
+      );
+
+       app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+
+      const query = { _id: new ObjectId(id) };
+
+      const result = await userCollection.deleteOne(query);
+      res.send(result);
+    });
 
 
       // Get user role
@@ -108,14 +173,46 @@ async function run() {
       });
 
 
-      app.post("/product", verifyToken, async (req, res) => {
+      app.post("/product", verifyToken,verifyAdmin, async (req, res) => {
         const item = req.body;
         console.log(item);
         const result = await productCollection.insertOne(item);
         res.send(result);
       }); 
 
-       //carts
+
+      app.patch("/product/:id", async (req, res) => {
+        const item = req.body;
+        const id = req.params.id;
+        const filter = { _id: new ObjectId (id) };
+        const updatedDoc = {
+          $set: {
+            name: item.name,
+            category: item.category,
+            price: item.price,
+            recipe: item.recipe,
+            image: item.image,
+          },
+        };
+  
+        const result = await productCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      });
+
+
+      app.delete("/product/:id", verifyToken, verifyAdmin, async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId (id) };
+        const result = await productCollection.deleteOne(query);
+        res.send(result);
+      });
+
+       
+      
+      
+      
+      
+      //carts
     app.get("/carts", async (req, res) => {
         const email = req.query.email;
         const query = { email: email };
@@ -136,6 +233,78 @@ async function run() {
         const result = await cartCollection.deleteOne(query);
         res.send(result);
       }); 
+
+      //reviews
+
+    app.get("/reviews", async (req, res) => {
+      const result = await reviewCollection.find().toArray();
+      res.send(result);
+    });
+
+
+      //payment intend
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      console.log(amount, "amount inside the intent");
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+
+    app.get("/payments/:email", verifyToken, async (req, res) => {
+      const query = { email: req.params.email };
+      if (req.params.email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
+    });
+
+
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+
+      //carefully delete each item from the cart
+
+      console.log("payment info", payment);
+      const query = {
+        _id: {
+          $in: payment.cartIds.map((id) => new ObjectId(id)),
+        },
+      };
+      const deleteResult = await cartCollection.deleteMany(query);
+
+      //send user email about payment confirmation
+      mg.messages
+        .create(process.env.MAIL_SENDING_DOMAIN, {
+          from: "Mailgun Sandbox <postmaster@sandbox54984a3ccfc6421d91cf34d0ac6a48b6.mailgun.org>",
+          to: ["farhaddhkbd08@gmail.com"],
+          subject: "Organic Products Order Confirmed",
+          text: "Testing some Mailgun awesomness!",
+          html: `<div>
+          <h2>Thank you for your order</h2>
+          <h4>Your Transaction Id:<strong>${payment.transactionId}</strong></h4>
+          <p>Your Product will deliver shortly</p>
+          </div>`,
+        })
+        .then((msg) => console.log(msg)) // logs response data
+        .catch((err) => console.log(err)); // logs any error`;
+
+      res.send({ paymentResult, deleteResult });
+    });
+
+
+   
 
 
 
