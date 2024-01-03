@@ -187,10 +187,11 @@ async function run() {
         const filter = { _id: new ObjectId (id) };
         const updatedDoc = {
           $set: {
-            name: item.name,
+            title: item.title,
             category: item.category,
             price: item.price,
-            recipe: item.recipe,
+            inventory: item.inventory,
+            description: item.description,
             image: item.image,
           },
         };
@@ -352,7 +353,7 @@ async function run() {
     
     //stats or analytics
 
-     app.get("/admin-stats",verifyToken, verifyAdmin, async (req, res) => {
+     app.get("/admin-stats",verifyToken,verifyAdmin, async (req, res) => {
       const users = await userCollection.estimatedDocumentCount();
       const productItems = await productCollection.estimatedDocumentCount();
       const orders = await paymentCollection.estimatedDocumentCount();
@@ -389,7 +390,7 @@ async function run() {
 
 // using aggregate pipeline
 
-app.get("/order-stats",  async (req, res) => {
+app.get("/order-stats",verifyToken,verifyAdmin,  async (req, res) => {
   const result = await paymentCollection
     .aggregate([
       {
