@@ -220,8 +220,7 @@ async function run() {
         res.send(result);
       });
 
-<<<<<<< HEAD
-      //carts collection
+      
     // app.post("/carts", async (req, res) => {
     //     const cartItem = req.body;
     //     const result = await cartCollection.insertOne(cartItem);
@@ -237,77 +236,6 @@ async function run() {
         console.log(cartItem);
         const inventoryItem = await productCollection.findOne({ _id: new ObjectId(cartItem.productId) });
         // console.log(inventoryItem.inventory);
-=======
-
-
-
-
-      //testing
-  //     app.post('/carts',async(req,res)=>{
-  //       const orderItem = req.body;
-  //       console.log(orderItem.quantity)
-       
-  //       // const menuItem = await orderItemsCollection.findOne({ _id: new ObjectId(orderItem.menuId) });
-  //       // console.log(menuItem);
-
-  //       const inventoryItem = await productCollection.findOne({ _id: new ObjectId(orderItem.menuId) });
-
-  //       if (!inventoryItem) {
-  //         return res.status(404).json({ error: 'inventoryItem item not found' });
-  //       }
-
-  //       const availableInventory = inventoryItem.inventory;
-
-        
-  //       console.log(availableInventory)
-
-  //  if (orderItem.quantity > availableInventory) {
-  //   return res.status(400).json({ error: 'Quantity exceeds available inventory' });
-  // }
-
-  //  // Update the inventory in the database
-  //  const Update = await productCollection.updateOne(
-  //   { _id: new ObjectId(orderItem.menuId) },
-  //   { $set: { inventory: availableInventory - orderItem.quantity } }
-  // );
-
-  // console.log(Update)
-      
-         
-  //       const result = await cartCollection.insertOne(orderItem);
-  //       res.send(result)
-  //       // console.log(result);
-  //     });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      // carts collection
-    app.post("/carts", async (req, res) => {
-        const cartItem = req.body;
-        // const orderItem = req.body;
-        console.log(cartItem);
-        const inventoryItem = await productCollection.findOne({ _id: new ObjectId(cartItem.productId) });
-        console.log(inventoryItem.inventory);
->>>>>>> d503aac8f8e206aa4b6817e7ecf8689a699a8495
         if (!inventoryItem) {
           return res.status(404).json({ error: 'inventoryItem item not found' });
         }
