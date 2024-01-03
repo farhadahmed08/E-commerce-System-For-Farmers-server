@@ -221,11 +221,54 @@ async function run() {
       });
 
       //carts collection
-    app.post("/carts", async (req, res) => {
+    // app.post("/carts", async (req, res) => {
+    //     const cartItem = req.body;
+    //     const result = await cartCollection.insertOne(cartItem);
+    //     res.send(result);
+    //   });
+
+
+    
+      // carts collection
+      app.post("/carts", async (req, res) => {
         const cartItem = req.body;
+        
+        console.log(cartItem);
+        const inventoryItem = await productCollection.findOne({ _id: new ObjectId(cartItem.productId) });
+        // console.log(inventoryItem.inventory);
+        if (!inventoryItem) {
+          return res.status(404).json({ error: 'inventoryItem item not found' });
+        }
+
+        const availableInventory = inventoryItem.inventory;
+        console.log(availableInventory);
+
+        if (cartItem.quantity > availableInventory) {
+          return res.status(400).json({ error: 'Quantity exceeds available inventory' });
+        }
+      
+         // Update the inventory in the database
+         const Update = await productCollection.updateOne(
+          { _id: new ObjectId(cartItem.productId) },
+          { $set: { inventory: availableInventory - cartItem.quantity } }
+        );
+      
+        console.log(Update)
+        
+        
         const result = await cartCollection.insertOne(cartItem);
         res.send(result);
       });
+
+
+
+
+
+
+
+
+
+
 
       app.delete("/carts/:id", async (req, res) => {
         const id = req.params.id;
@@ -304,6 +347,104 @@ async function run() {
     });
 
 
+    
+    
+    
+    //stats or analytics
+
+     app.get("/admin-stats",verifyToken, verifyAdmin, async (req, res) => {
+      const users = await userCollection.estimatedDocumentCount();
+      const productItems = await productCollection.estimatedDocumentCount();
+      const orders = await paymentCollection.estimatedDocumentCount();
+      
+      // this is not the best way
+      // const payments = await paymentCollection.find().toArray();
+      // const revenue = payments.reduce((total,payment)=>total+payment.price,0)
+
+      const result = await paymentCollection
+        .aggregate([
+          {
+            $group: {
+              _id: null, //mane sobgula id nie korbe
+              totalRevenue: {
+                $sum: "$price",
+              },
+            },
+          },
+        ])
+        .toArray();
+
+      const revenue = result.length > 0 ? result[0].totalRevenue : 0;
+
+      res.send({
+        users,
+        productItems,
+        orders,
+        revenue,
+      });
+    });
+
+
+    // order status
+
+// using aggregate pipeline
+
+app.get("/order-stats",  async (req, res) => {
+  const result = await paymentCollection
+    .aggregate([
+      {
+        $unwind: "$productIds"
+      },
+      {
+        $lookup: {
+            from: "products",
+            let: { objectId: { $toObjectId: "$productIds" } },
+            pipeline: [
+                {
+                    $match: {
+                        $expr: {
+                            $eq: [
+                                "$_id",
+                                "$$objectId"
+                            ]
+                        }
+                    }
+                }
+            ],
+            as: "productItems"
+        }
+    },
+       // {
+      //   $lookup: {
+      //     from: "products",
+      //     localField: "productIds",
+      //     foreignField: "_id",
+      //     as: "productItems"
+      //   },
+      // },
+      {
+        $unwind: "$productItems",
+      },
+      {
+        $group: {
+          _id: "$productItems.category",
+          quantity: { $sum: 1 },
+          revenue: { $sum: "$productItems.price" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          category: "$_id",
+          quantity: "$quantity",
+          revenue: "$revenue",
+        },
+      },
+    ])
+    .toArray();
+
+  res.send(result);
+});
    
 
 
