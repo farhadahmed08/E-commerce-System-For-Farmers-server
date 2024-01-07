@@ -286,6 +286,14 @@ async function run() {
     });
 
 
+    app.post("/reviews", verifyToken, async (req, res) => {
+      const item = req.body;
+      console.log(item);
+      const result = await reviewCollection.insertOne(item);
+      res.send(result);
+    }); 
+
+
       //payment intend
     app.post("/create-payment-intent", async (req, res) => {
       const { price } = req.body;
